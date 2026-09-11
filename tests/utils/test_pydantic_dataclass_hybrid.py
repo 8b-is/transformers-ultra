@@ -15,6 +15,7 @@
 import unittest
 
 import torch
+from pydantic import ValidationError
 
 from transformers.utils.pydantic_schemas import (
     UltraFastCausalLMOutput,
@@ -49,6 +50,46 @@ class PydanticDataclassHybridTest(unittest.TestCase):
         )
         self.assertEqual(q_schema.quant_method, "metal")
         self.assertEqual(q_schema.bits, 4)
+
+    def test_ultraq_fp8_and_bitnet_methods(self):
+        """fp8 ships DeepSeek-family configs; bitnet is the 1.58 ternary."""
+        fp8 = UltraQuantizationConfigSchema(quant_method="fp8", bits=8, group_size=32)
+        self.assertEqual(fp8.to_dict()["bits"], 8)
+        self.assertEqual(fp8.to_dict()["group_size"], 32)
+        bitnet = UltraQuantizationConfigSchema(quant_method="bitnet", bits=1)
+        self.assertEqual(bitnet.bits, 1)
+        self.assertIsNone(bitnet.group_size)
+        self.assertNotIn("group_size", bitnet.to_dict())  # exclude_none
+
+    def test_ultraq_rejects_nonsense_bits_per_method(self):
+        """Per-method bit constraints: bnb_8bit is 8, bitnet is 1-2, awq 2/3/4/8."""
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="bnb_8bit", bits=6)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="bitnet", bits=4)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="bitnet", bits=15)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="fp8", bits=4)
+        ok = UltraQuantizationConfigSchema(quant_method="awq", bits=3, group_size=128)
+        self.assertEqual(ok.bits, 3)
+
+    def test_ultraq_group_size_must_be_power_of_two(self):
+        """Group sizes are powers of two in every real kernel (8,16,...1024)."""
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="gptq", bits=4, group_size=20)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="metal", bits=4, group_size=6)
+        ok = UltraQuantizationConfigSchema(quant_method="metal", bits=4, group_size=64)
+        self.assertEqual(ok.group_size, 64)
+
+    def test_ultraq_rejects_unknown_method_and_extra_fields(self):
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="quant_matrix", bits=4)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(
+                quant_method="awq", bits=4, group_size=128, unsung=True
+            )
 
     def test_fast_slotted_causal_lm_output_pattern_matching(self):
         """Verify zero-overhead slotted dataclass and match/case structural extraction."""

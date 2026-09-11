@@ -27,7 +27,7 @@ import torch
 
 
 try:
-    from pydantic import BaseModel, ConfigDict, Field, field_validator
+    from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
     _has_pydantic = True
 except ImportError:
@@ -66,14 +66,63 @@ if _has_pydantic:
             return self.model_dump(exclude_none=True)
 
     class UltraQuantizationConfigSchema(BaseModel):
-        """Pydantic v2 schema for quantization configuration validation."""
+        """Pydantic v2 schema for quantization configuration validation.
+
+        Per-method constraints keep nonsense configs from ever reaching a
+        loader kernel: bitnets are 1-2 bit ternary, awq/gptq live at
+        2/3/4/8 bits, fp8 is 8-bit float weights, and group sizes are
+        powers of two (8..) whenever the method uses grouping. The method
+        set is the modern transformers surface — fp8 ships DeepSeek's
+        configs; rejecting it would make a real model unloadable.
+        """
 
         model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-        quant_method: Literal["metal", "bitnet", "awq", "gptq", "bnb_4bit", "bnb_8bit", "compressed_tensors"]
+        quant_method: Literal[
+            "metal",
+            "bitnet",
+            "awq",
+            "gptq",
+            "bnb_4bit",
+            "bnb_8bit",
+            "compressed_tensors",
+            "fp8",
+            "hqq",
+            "torchao",
+            "eetq",
+        ]
         bits: int = Field(default=4, ge=1, le=16)
-        group_size: int = Field(default=64, ge=16)
+        group_size: int | None = Field(default=None, ge=8)
         use_sub_norms: bool = Field(default=False)
+
+        @field_validator("group_size")
+        @classmethod
+        def _group_size_power_of_two(cls, v):
+            if v is not None and (v & (v - 1)) != 0:
+                raise ValueError(f"group_size must be a power of two, got {v}")
+            return v
+
+        @model_validator(mode="after")
+        def _check_method_bits(self):
+            allowed = {
+                "bitnet": {1, 2},  # 1.58-bit ternary, integer-coded
+                "awq": {2, 3, 4, 8},
+                "gptq": {2, 3, 4, 8},
+                "bnb_4bit": {4},
+                "bnb_8bit": {8},
+                "fp8": {8},
+                "compressed_tensors": {4, 8},
+            }.get(self.quant_method)
+            if allowed is not None and self.bits not in allowed:
+                raise ValueError(
+                    f"{self.quant_method} does not support bits={self.bits} "
+                    f"(allowed {sorted(allowed)})"
+                )
+            return self
+
+        def to_dict(self) -> dict[str, Any]:
+            """Converts valid schema directly to a quantization config dict."""
+            return self.model_dump(exclude_none=True)
 
 
 # =====================================================================
