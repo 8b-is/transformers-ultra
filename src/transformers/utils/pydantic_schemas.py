@@ -61,6 +61,19 @@ if _has_pydantic:
                 return v
             return v
 
+        @model_validator(mode="after")
+        def _check_generation_invariants(self):
+            if self.min_new_tokens > self.max_new_tokens:
+                raise ValueError(
+                    f"min_new_tokens ({self.min_new_tokens}) cannot exceed "
+                    f"max_new_tokens ({self.max_new_tokens})"
+                )
+            if self.do_sample and self.temperature == 0.0:
+                raise ValueError(
+                    "temperature cannot be 0.0 when do_sample=True; use do_sample=False for greedy decoding"
+                )
+            return self
+
         def to_dict(self) -> dict[str, Any]:
             """Converts valid schema directly to generation config dictionary."""
             return self.model_dump(exclude_none=True)
@@ -105,6 +118,7 @@ if _has_pydantic:
         @model_validator(mode="after")
         def _check_method_bits(self):
             allowed = {
+                "metal": {2, 3, 4, 6, 8},
                 "bitnet": {1, 2},  # 1.58-bit ternary, integer-coded
                 "awq": {2, 3, 4, 8},
                 "gptq": {2, 3, 4, 8},
@@ -112,6 +126,8 @@ if _has_pydantic:
                 "bnb_8bit": {8},
                 "fp8": {8},
                 "compressed_tensors": {4, 8},
+                "hqq": {1, 2, 3, 4, 8},
+                "eetq": {8},
             }.get(self.quant_method)
             if allowed is not None and self.bits not in allowed:
                 raise ValueError(

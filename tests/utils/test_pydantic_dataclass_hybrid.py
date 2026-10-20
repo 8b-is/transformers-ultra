@@ -91,6 +91,22 @@ class PydanticDataclassHybridTest(unittest.TestCase):
                 quant_method="awq", bits=4, group_size=128, unsung=True
             )
 
+    def test_generation_invariants_and_metal_hqq_bits(self):
+        """Enforce min_new_tokens <= max_new_tokens, temperature > 0 when do_sample=True, and metal/hqq bit sets."""
+        with self.assertRaises(ValidationError):
+            UltraGenerationConfigSchema(min_new_tokens=64, max_new_tokens=32)
+        with self.assertRaises(ValidationError):
+            UltraGenerationConfigSchema(do_sample=True, temperature=0.0)
+        greedy = UltraGenerationConfigSchema(do_sample=False, temperature=0.0, min_new_tokens=16, max_new_tokens=64)
+        self.assertEqual(greedy.temperature, 0.0)
+
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="metal", bits=5, group_size=64)
+        with self.assertRaises(ValidationError):
+            UltraQuantizationConfigSchema(quant_method="hqq", bits=6, group_size=64)
+        metal6 = UltraQuantizationConfigSchema(quant_method="metal", bits=6, group_size=64)
+        self.assertEqual(metal6.bits, 6)
+
     def test_fast_slotted_causal_lm_output_pattern_matching(self):
         """Verify zero-overhead slotted dataclass and match/case structural extraction."""
         logits = torch.randn(1, 4, 32000)
