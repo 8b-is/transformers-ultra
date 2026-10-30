@@ -21,6 +21,7 @@ jobs:
       repo_owner: ${{ github.repository_owner }}
       package: ${{ github.event.repository.name }}
       package_name: transformers
+      python_version: "3.12"
       path_to_docs: ${{ github.event.repository.name }}/docs/source/en
 
   # Satisfy required check in merge queue without actually building docs
