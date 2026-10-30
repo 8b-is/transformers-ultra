@@ -18,8 +18,10 @@ jobs:
     with:
       commit_sha: ${{ github.event.pull_request.head.sha }}
       pr_number: ${{ github.event.number }}
-      package: transformers
-      languages: en
+      repo_owner: ${{ github.repository_owner }}
+      package: ${{ github.event.repository.name }}
+      package_name: transformers
+      path_to_docs: ${{ github.event.repository.name }}/docs/source/en
 
   # Satisfy required check in merge queue without actually building docs
   skip_merge_queue:
