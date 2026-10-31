@@ -14,23 +14,19 @@ permissions:
 
 jobs:
    build:
-    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@e60a538eea9817ab312196d0d233604b01697265  # main (light installs, no custom container)
+    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@5f905d478f12abef0339c938d1388de3b448619d  # main (light installs, no custom container)
     with:
       commit_sha: ${{ github.sha }}
-      package: transformers
+      repo_owner: ${{ github.repository_owner }}
+      package: ${{ github.event.repository.name }}
+      package_name: transformers
+      python_version: "3.12"
+      # Enforce this fork's runtime bounds after the generic light install.
+      pre_command: uv pip install "./${{ github.event.repository.name }}"
+      path_to_docs: ${{ github.event.repository.name }}/docs/source/en
       notebook_folder: transformers_doc
-      languages: en
     secrets:
       token: ${{ secrets.HUGGINGFACE_PUSH }}
       hf_token: ${{ secrets.HF_DOC_BUILD_PUSH }}
 
-   build_other_lang:
-    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@e60a538eea9817ab312196d0d233604b01697265  # main (light installs, no custom container)
-    with:
-      commit_sha: ${{ github.sha }}
-      package: transformers
-      notebook_folder: transformers_doc
-      languages: ar de es fr hi it ja ko pt ro tr zh
-    secrets:
-      token: ${{ secrets.HUGGINGFACE_PUSH }}
-      hf_token: ${{ secrets.HF_DOC_BUILD_PUSH }}
+   # Translations are produced by doc-builder's translate_docs.yml.
