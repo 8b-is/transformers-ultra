@@ -95,7 +95,7 @@ jobs:
       contents: read
     needs: [get-pr-number, get-pr-info]
     if: ${{ needs.get-pr-number.outputs.PR_NUMBER != '' }}
-    uses: huggingface/doc-builder/.github/workflows/build_pr_documentation.yml@5f905d478f12abef0339c938d1388de3b448619d # main
+    uses: huggingface/doc-builder/.github/workflows/build_pr_documentation.yml@6f0962e04218e46b8117ac5990789cccebb647d8 # main
     with:
       commit_sha: ${{ needs.get-pr-info.outputs.PR_HEAD_SHA }}
       pr_number: ${{ needs.get-pr-number.outputs.PR_NUMBER }}
